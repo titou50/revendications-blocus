@@ -31,6 +31,9 @@ export function AddClaimDialog({
   const tooShort = text.trim().length < 8;
 
   async function submit() {
+    // Verrou immédiat contre les doubles requêtes
+    if (busy || tooShort) return;
+
     setBusy(true);
     setError(null);
     try {
@@ -43,8 +46,10 @@ export function AddClaimDialog({
           establishmentId,
         }),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Ajout refusé");
+
       onCreated(data.claim);
       setText("");
       setOpen(false);
