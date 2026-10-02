@@ -1,13 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { AddClaimDialog } from "@/components/add-claim-dialog";
 import { ClaimList } from "@/components/claim-list";
-import { ExportBar } from "@/components/export-bar";
+import { ExportInstaButton } from "@/components/export-insta-button";
 import { Badge } from "@/components/ui/badge";
-import { buildPlainText } from "@/lib/plain-text";
 import { partitionClaims } from "@/lib/score";
 import type { Claim, Establishment, VoteType } from "@/lib/types";
+
+// Client Supabase léger pour le Realtime côté navigateur
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export function LiveDocument({
   establishment,
@@ -19,17 +25,40 @@ export function LiveDocument({
   const [claims, setClaims] = useState(initialClaims);
   const [participants, setParticipants] = useState(establishment.participant_count);
 
-  const refresh = useCallback(async () => {
-    const res = await fetch(`/api/claims?establishmentId=${establishment.id}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setClaims(data.claims ?? []);
-  }, [establishment.id]);
-
+  // Écoute Realtime via WebSockets (plus aucun polling setInterval)
   useEffect(() => {
-    const id = setInterval(refresh, 4000);
-    return () => clearInterval(id);
-  }, [refresh]);
+    const channel = supabase
+      .channel(`realtime-claims-${establishment.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "claims",
+          filter: `establishment_id=eq.${establishment.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newClaim = payload.new as Claim;
+            if (newClaim.status !== "archived") {
+              setClaims((prev) => [newClaim, ...prev]);
+            }
+          } else if (payload.eventType === "UPDATE") {
+            const updatedClaim = payload.new as Claim;
+            setClaims((prev) =>
+              prev
+                .map((c) => (c.id === updatedClaim.id ? updatedClaim : c))
+                .filter((c) => c.status !== "archived")
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [establishment.id]);
 
   useEffect(() => {
     setParticipants(establishment.participant_count);
@@ -55,10 +84,6 @@ export function LiveDocument({
     [claims]
   );
   const dismissed = [...local.dismissed, ...national.dismissed];
-  const copyText = useMemo(
-    () => buildPlainText({ ...establishment, participant_count: participants }, claims),
-    [claims, establishment, participants]
-  );
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-36 pt-8">
@@ -66,9 +91,16 @@ export function LiveDocument({
         <p className="text-xs font-medium tracking-[0.2em] text-primary uppercase">
           Document live
         </p>
-        <h1 className="mt-2 font-[family-name:var(--font-instrument)] text-4xl leading-tight sm:text-5xl">
-          {establishment.name}
-        </h1>
+        <div className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h1 className="font-[family-name:var(--font-instrument)] text-4xl leading-tight sm:text-5xl">
+            {establishment.name}
+          </h1>
+          {/* Nouveau bouton de partage carrousel Insta */}
+          <ExportInstaButton
+            establishment={{ ...establishment, participant_count: participants }}
+            claims={claims}
+          />
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <a href="/" className="underline-offset-2 hover:text-foreground hover:underline">
             Changer d’établissement
@@ -111,8 +143,6 @@ export function LiveDocument({
           />
         ) : null}
       </div>
-
-      <ExportBar establishmentId={establishment.id} copyText={copyText} />
     </div>
   );
 }
