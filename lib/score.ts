@@ -1,22 +1,28 @@
-import { claimScore, DISMISSAL_SCORE, type Claim } from "@/lib/types";
+import type { Claim } from "@/lib/types";
 
-export function sortClaims(claims: Claim[]): Claim[] {
-  return [...claims].sort((a, b) => {
-    const scoreDiff = claimScore(a) - claimScore(b);
-    if (scoreDiff !== 0) return scoreDiff;
-    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-  });
+export function getApprovalRatio(upvotes: number, downvotes: number): number {
+  const total = upvotes + downvotes;
+  if (total === 0) return 100; // 100% par défaut si aucun vote
+  return Math.round((upvotes / total) * 100);
 }
 
 export function partitionClaims(claims: Claim[]) {
   const active: Claim[] = [];
   const dismissed: Claim[] = [];
-  for (const claim of sortClaims(claims)) {
-    if (claimScore(claim) > DISMISSAL_SCORE || claim.status === "flagged") {
-      dismissed.push(claim);
+
+  for (const claim of claims) {
+    const up = claim.upvotes ?? 0;
+    const down = claim.downvotes ?? 0;
+    const total = up + down;
+    const ratio = getApprovalRatio(up, down);
+
+    // Écarter uniquement si au moins 5 votes ET 70% ou plus de votes "contre" (ratio <= 30%)
+    if (total >= 5 && ratio <= 30) {
+      dismissed.push({ ...claim, status: "dismissed" });
     } else {
-      active.push(claim);
+      active.push({ ...claim, status: "active" });
     }
   }
+
   return { active, dismissed };
 }
