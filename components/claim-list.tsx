@@ -1,68 +1,71 @@
-"use client";
-
-import { ThumbsDown, CircleAlert, Ban } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import type { Claim, VoteType } from "@/lib/types";
-import { claimScore } from "@/lib/types";
+import { getApprovalRatio } from "@/lib/score";
 
-const ACTIONS: { type: VoteType; label: string; icon: typeof ThumbsDown }[] = [
-  { type: "against", label: "Contre", icon: ThumbsDown },
-  { type: "low_priority", label: "Pas important", icon: CircleAlert },
-  { type: "off_topic", label: "Hors sujet", icon: Ban },
-];
-
-export function ClaimList({
-  title,
-  claims,
-  empty,
-  onVote,
-}: {
+interface ClaimListProps {
   title: string;
   claims: Claim[];
   empty: string;
-  onVote: (claimId: string, voteType: VoteType) => void;
-}) {
+  onVote: (claimId: string, type: VoteType) => void;
+}
+
+export function ClaimList({ title, claims, empty, onVote }: ClaimListProps) {
+  if (claims.length === 0) {
+    return (
+      <div className="space-y-2">
+        <h3 className="font-bold text-lg">{title}</h3>
+        <p className="text-sm text-muted-foreground italic">{empty}</p>
+      </div>
+    );
+  }
+
   return (
-    <section className="space-y-3">
-      <h2 className="font-[family-name:var(--font-instrument)] text-2xl tracking-tight">
-        {title}
-      </h2>
-      {claims.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{empty}</p>
-      ) : (
-        <ul className="space-y-2">
-          {claims.map((claim) => (
-            <li
+    <div className="space-y-4">
+      <h3 className="font-bold text-lg">{title}</h3>
+      <div className="space-y-3">
+        {claims.map((claim) => {
+          const up = claim.upvotes ?? 0;
+          const down = claim.downvotes ?? 0;
+          const total = up + down;
+          const ratio = getApprovalRatio(up, down);
+
+          return (
+            <div
               key={claim.id}
-              className="rounded-lg border bg-card/80 px-3 py-3 shadow-sm sm:px-4"
+              className="p-4 rounded-xl border bg-card flex items-center justify-between gap-4"
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <p className="text-[1.05rem] leading-snug">
-                  <span className="mr-2 text-muted-foreground">•</span>
-                  {claim.formatted_title}
-                </p>
-                <div className="flex flex-wrap gap-1.5 sm:justify-end">
-                  {ACTIONS.map(({ type, label, icon: Icon }) => (
-                    <Button
-                      key={type}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onVote(claim.id, type)}
-                    >
-                      <Icon />
-                      {label}
-                    </Button>
-                  ))}
+              <div className="space-y-1 flex-1">
+                <p className="font-semibold text-base">{claim.formatted_title}</p>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>{ratio}% d'accord ({total} vote{total > 1 ? "s" : ""})</span>
+                  {/* Indicateur visuel de soutien */}
+                  <div className="w-24 h-1.5 bg-red-500/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 transition-all"
+                      style={{ width: `${ratio}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-              <p className="mt-2 text-[11px] text-muted-foreground">
-                Score communauté {claimScore(claim)} / 15 pour rester dans le document
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+
+              {/* Boutons Pour / Contre */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => onVote(claim.id, "up")}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 font-medium text-xs flex items-center gap-1 transition"
+                >
+                  👍 {up}
+                </button>
+                <button
+                  onClick={() => onVote(claim.id, "down")}
+                  className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-600 font-medium text-xs flex items-center gap-1 transition"
+                >
+                  👎 {down}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
