@@ -20,17 +20,20 @@ export async function getEstablishment(id: string): Promise<Establishment | null
 }
 
 export async function upsertEstablishment(est: {
-  id: string;
+  id?: string;
+  code_uai?: string;
   name: string;
   city: string;
   type: string;
-  code_uai?: string;
 }): Promise<Establishment> {
+  const targetId = est.id ?? est.code_uai;
+  if (!targetId) throw new Error("Un identifiant ou code UAI est requis");
+
   const { data, error } = await supabaseAdmin
     .from("establishments")
     .upsert(
       {
-        id: est.id,
+        id: targetId,
         name: est.name,
         city: est.city,
         type: est.type,
@@ -48,7 +51,7 @@ export async function upsertEstablishment(est: {
 export async function recordVisit(
   establishmentId: string,
   sessionHash: string
-): Promise<void> {
+): Promise<number> {
   await supabaseAdmin
     .from("visits")
     .upsert(
@@ -61,12 +64,14 @@ export async function recordVisit(
     .select("*", { count: "exact", head: true })
     .eq("establishment_id", establishmentId);
 
-  if (count !== null) {
-    await supabaseAdmin
-      .from("establishments")
-      .update({ participant_count: count })
-      .eq("id", establishmentId);
-  }
+  const total = count ?? 1;
+
+  await supabaseAdmin
+    .from("establishments")
+    .update({ participant_count: total })
+    .eq("id", establishmentId);
+
+  return total;
 }
 
 // --- REVENDICATIONS ---
