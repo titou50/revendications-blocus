@@ -1,3 +1,113 @@
+import { createClient } from "@supabase/supabase-js";
+import type { Claim, Establishment, VoteType } from "@/lib/types";
+
+export const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// --- ÉTABLISSEMENTS ---
+
+export async function getEstablishment(id: string): Promise<Establishment | null> {
+  const { data, error } = await supabaseAdmin
+    .from("establishments")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) return null;
+  return data as Establishment;
+}
+
+export async function upsertEstablishment(est: {
+  id: string;
+  name: string;
+  city: string;
+  type: string;
+  code_uai?: string;
+}): Promise<Establishment> {
+  const { data, error } = await supabaseAdmin
+    .from("establishments")
+    .upsert(
+      {
+        id: est.id,
+        name: est.name,
+        city: est.city,
+        type: est.type,
+        code_uai: est.code_uai ?? null,
+      },
+      { onConflict: "id" }
+    )
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Establishment;
+}
+
+export async function recordVisit(
+  establishmentId: string,
+  sessionHash: string
+): Promise<void> {
+  await supabaseAdmin
+    .from("visits")
+    .upsert(
+      { establishment_id: establishmentId, session_hash: sessionHash },
+      { onConflict: "establishment_id,session_hash" }
+    );
+
+  const { count } = await supabaseAdmin
+    .from("visits")
+    .select("*", { count: "exact", head: true })
+    .eq("establishment_id", establishmentId);
+
+  if (count !== null) {
+    await supabaseAdmin
+      .from("establishments")
+      .update({ participant_count: count })
+      .eq("id", establishmentId);
+  }
+}
+
+// --- REVENDICATIONS ---
+
+export async function listClaims(establishmentId: string): Promise<Claim[]> {
+  const { data, error } = await supabaseAdmin
+    .from("claims")
+    .select("*")
+    .eq("establishment_id", establishmentId)
+    .neq("status", "archived")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data as Claim[]) ?? [];
+}
+
+export async function createClaim(claim: {
+  establishment_id: string;
+  category: "local" | "national";
+  original_text: string;
+  formatted_title: string;
+}): Promise<Claim> {
+  const { data, error } = await supabaseAdmin
+    .from("claims")
+    .insert({
+      establishment_id: claim.establishment_id,
+      category: claim.category,
+      original_text: claim.original_text,
+      formatted_title: claim.formatted_title,
+      status: "active",
+      upvotes: 0,
+      downvotes: 0,
+      score: 0,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Claim;
+}
+
 export async function voteClaim(claimId: string, voteType: VoteType): Promise<Claim | null> {
   const { data: claim, error: fetchErr } = await supabaseAdmin
     .from("claims")
@@ -22,5 +132,5 @@ export async function voteClaim(claimId: string, voteType: VoteType): Promise<Cl
     .single();
 
   if (updateErr) throw updateErr;
-  return updated;
+  return updated as Claim;
 }
