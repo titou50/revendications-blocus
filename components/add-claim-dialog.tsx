@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,11 +28,37 @@ export function AddClaimDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Anti-bot 1: Honeypot (champ invisible)
+  const [hpWebsite, setHpWebsite] = useState("");
+  // Anti-bot 2: Timestamp à l'ouverture de la modale
+  const startTime = useRef<number>(0);
+
   const tooShort = text.trim().length < 8;
 
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      startTime.current = Date.now();
+      setHpWebsite("");
+      setError(null);
+    }
+    setOpen(nextOpen);
+  }
+
   async function submit() {
-    // Verrou immédiat contre les doubles requêtes
     if (busy || tooShort) return;
+
+    // Piège Honeypot : si un bot a rempli le champ caché, rejet silencieux
+    if (hpWebsite.length > 0) {
+      setText("");
+      setOpen(false);
+      return;
+    }
+
+    // Détection de vitesse : saisie en moins de 1,2s = bot
+    if (Date.now() - startTime.current < 1200) {
+      setError("Soumission trop rapide.");
+      return;
+    }
 
     setBusy(true);
     setError(null);
@@ -69,7 +95,7 @@ export function AddClaimDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button size="lg" />}>Ajouter une revendication</DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
@@ -107,6 +133,19 @@ export function AddClaimDialog({
               className="min-h-28 bg-card"
             />
           </div>
+
+          {/* Champ Honeypot : piégeage des spambots hors viewport */}
+          <div className="absolute left-[-9999px] top-[-9999px] aria-hidden:true">
+            <input
+              type="text"
+              name="website_url_check"
+              tabIndex={-1}
+              value={hpWebsite}
+              onChange={(e) => setHpWebsite(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <DialogFooter>
