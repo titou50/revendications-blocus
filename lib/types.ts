@@ -11,6 +11,14 @@ export interface Establishment {
   participant_count: number;
 }
 
+export interface EstablishmentSearchHit {
+  id: string;
+  name: string;
+  city: string;
+  type: string;
+  code_uai?: string;
+}
+
 export interface Claim {
   id: string;
   establishment_id: string;
