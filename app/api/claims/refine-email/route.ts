@@ -8,6 +8,16 @@ const LIST_TIMEOUT_MS = 4000; // appel de découverte des modèles
 // Cache en mémoire (valable tant que l'instance serverless reste chaude)
 const modelCache: Record<string, string> = {};
 
+// ---------- Nettoyage du Markdown résiduel ----------
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1") // **gras**
+    .replace(/__(.+?)__/g, "$1") // __gras__
+    .replace(/^#{1,6}\s+/gm, "") // # titres
+    .replace(/`([^`]+)`/g, "$1") // `code`
+    .trim();
+}
+
 // ---------- Groq : découverte dynamique du modèle disponible ----------
 const GROQ_PREFERRED = [
   "llama-3.3-70b-versatile",
@@ -136,7 +146,8 @@ Le ton doit être ${tone === "formel" ? "soutenu et respectueux pour un envoi in
 Règles strictes :
 1. Conserve scrupuleusement le sens et les revendications d'origine.
 2. Ne rajoute pas d'informations inventées.
-3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction.`;
+3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction.
+4. Le texte sera collé tel quel dans un e-mail : écris en texte brut. N'utilise AUCUNE mise en forme Markdown (pas de **, pas de #, pas de tirets de liste, pas de puces). Pas de titre en gras : si une partie a un intitulé, écris-le simplement sur sa propre ligne, suivi d'un saut de ligne.`;
 
     const providers: {
       name: string;
@@ -202,7 +213,7 @@ Règles strictes :
         continue;
       }
       try {
-        const refinedText = await p.run(key);
+        const refinedText = stripMarkdown(await p.run(key));
         return NextResponse.json({ refinedText, provider: p.name });
       } catch (e: any) {
         errorsLog[p.name] = e?.message || "Erreur réseau";
