@@ -69,8 +69,39 @@ export function LiveDocument({
     setParticipants(establishment.participant_count);
   }, [establishment.participant_count]);
 
-  // Gestion du vote
+  // Gestion du vote avec verrouillage localStorage
   async function vote(claimId: string, voteType: VoteType) {
+    const votedKey = `voted_${claimId}`;
+    const previousVote = localStorage.getItem(votedKey);
+
+    // Empêche de revoter exactement le même choix
+    if (previousVote === voteType) return;
+
+    // Mise à jour optimiste locale des compteurs
+    setClaims((prev) =>
+      prev.map((c) => {
+        if (c.id !== claimId) return c;
+        let upDelta = 0;
+        let downDelta = 0;
+
+        if (voteType === "up") {
+          upDelta = 1;
+          if (previousVote === "down") downDelta = -1;
+        } else if (voteType === "down") {
+          downDelta = 1;
+          if (previousVote === "up") upDelta = -1;
+        }
+
+        return {
+          ...c,
+          up_votes: Math.max(0, (c.up_votes || 0) + upDelta),
+          down_votes: Math.max(0, (c.down_votes || 0) + downDelta),
+        };
+      })
+    );
+
+    localStorage.setItem(votedKey, voteType);
+
     const res = await fetch("/api/claims/vote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -78,7 +109,15 @@ export function LiveDocument({
     });
 
     const data = await res.json();
-    if (!res.ok) return;
+    if (!res.ok) {
+      // Revert en cas d'erreur API
+      if (previousVote) {
+        localStorage.setItem(votedKey, previousVote);
+      } else {
+        localStorage.removeItem(votedKey);
+      }
+      return;
+    }
 
     if (data.claim) {
       setClaims((prev) =>
