@@ -69,15 +69,15 @@ export function LiveDocument({
     setParticipants(establishment.participant_count);
   }, [establishment.participant_count]);
 
-  // Gestion du vote avec verrouillage localStorage
+  // Gestion du vote avec verrouillage localStorage et typage valide (upvotes / downvotes)
   async function vote(claimId: string, voteType: VoteType) {
     const votedKey = `voted_${claimId}`;
     const previousVote = localStorage.getItem(votedKey);
 
-    // Empêche de revoter exactement le même choix
+    // Blocage si l'utilisateur revote exactement la même chose
     if (previousVote === voteType) return;
 
-    // Mise à jour optimiste locale des compteurs
+    // Mise à jour optimiste du state local
     setClaims((prev) =>
       prev.map((c) => {
         if (c.id !== claimId) return c;
@@ -94,8 +94,8 @@ export function LiveDocument({
 
         return {
           ...c,
-          up_votes: Math.max(0, (c.up_votes || 0) + upDelta),
-          down_votes: Math.max(0, (c.down_votes || 0) + downDelta),
+          upvotes: Math.max(0, (c.upvotes || 0) + upDelta),
+          downvotes: Math.max(0, (c.downvotes || 0) + downDelta),
         };
       })
     );
@@ -110,7 +110,7 @@ export function LiveDocument({
 
     const data = await res.json();
     if (!res.ok) {
-      // Revert en cas d'erreur API
+      // Revert du localStorage en cas d'erreur API
       if (previousVote) {
         localStorage.setItem(votedKey, previousVote);
       } else {
