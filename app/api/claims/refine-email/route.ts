@@ -1,5 +1,78 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// 4 fournisseurs x 7 s = 28 s max, ce qui tient dans maxDuration
+export const maxDuration = 30;
+
+const TIMEOUT_MS = 7000;
+
+// Fournisseurs compatibles OpenAI (Groq, Mistral, Hugging Face Router)
+async function openAICompatible(
+  url: string,
+  key: string,
+  model: string,
+  system: string,
+  text: string
+): Promise<string> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: text },
+      ],
+      temperature: 0.2,
+      max_tokens: 1024,
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const out = data.choices?.[0]?.message?.content?.trim();
+  if (!out) throw new Error("Réponse vide");
+  return out;
+}
+
+// Google Gemini (generateContent)
+async function gemini(key: string, system: string, text: string): Promise<string> {
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": key,
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text }] }],
+        generationConfig: {
+          temperature: 0.2,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const out = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  if (!out) throw new Error("Réponse vide");
+  return out;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { rawText, tone = "formel" } = await req.json();
@@ -17,117 +90,72 @@ Règles strictes :
 2. Ne rajoute pas d'informations inventées.
 3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction.`;
 
+    const providers: {
+      name: string;
+      env: string;
+      run: (key: string) => Promise<string>;
+    }[] = [
+      {
+        name: "groq",
+        env: "GROQ_API_KEY",
+        run: (k) =>
+          openAICompatible(
+            "https://api.groq.com/openai/v1/chat/completions",
+            k,
+            "llama-3.3-70b-versatile",
+            systemPrompt,
+            rawText
+          ),
+      },
+      {
+        name: "mistral",
+        env: "MISTRAL_API_KEY",
+        run: (k) =>
+          openAICompatible(
+            "https://api.mistral.ai/v1/chat/completions",
+            k,
+            "mistral-small-latest",
+            systemPrompt,
+            rawText
+          ),
+      },
+      {
+        name: "gemini",
+        env: "GEMINI_API_KEY",
+        run: (k) => gemini(k, systemPrompt, rawText),
+      },
+      {
+        name: "huggingface",
+        env: "HF_TOKEN",
+        run: (k) =>
+          openAICompatible(
+            "https://router.huggingface.co/v1/chat/completions",
+            k,
+            "Qwen/Qwen2.5-72B-Instruct",
+            systemPrompt,
+            rawText
+          ),
+      },
+    ];
+
     const errorsLog: Record<string, string> = {};
 
-    // 1. MISTRAL AI
-    const mistralKey = process.env.MISTRAL_API_KEY?.trim();
-    if (mistralKey) {
-      try {
-        const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${mistralKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "mistral-small-latest",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: rawText },
-            ],
-            temperature: 0.2,
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const refinedText = data.choices?.[0]?.message?.content?.trim();
-          if (refinedText) return NextResponse.json({ refinedText, provider: "mistral" });
-        } else {
-          const err = await res.text();
-          errorsLog.mistral = `HTTP ${res.status}: ${err.slice(0, 150)}`;
-        }
-      } catch (e: any) {
-        errorsLog.mistral = e?.message || "Erreur réseau";
+    for (const p of providers) {
+      const key = process.env[p.env]?.trim();
+      if (!key) {
+        errorsLog[p.name] = `${p.env} non définie dans l'environnement courant`;
+        continue;
       }
-    } else {
-      errorsLog.mistral = "Clé non définie dans l'environnement courant";
+      try {
+        const refinedText = await p.run(key);
+        return NextResponse.json({ refinedText, provider: p.name });
+      } catch (e: any) {
+        errorsLog[p.name] = e?.message || "Erreur réseau";
+      }
     }
 
-    // 2. GOOGLE GEMINI (v1beta generateContent)
-    const geminiKey = process.env.GEMINI_API_KEY?.trim();
-    if (geminiKey) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: "user",
-                parts: [{ text: `${systemPrompt}\n\nTexte à corriger :\n${rawText}` }],
-              },
-            ],
-            generationConfig: { temperature: 0.2 },
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const refinedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          if (refinedText) return NextResponse.json({ refinedText, provider: "gemini" });
-        } else {
-          const err = await res.text();
-          errorsLog.gemini = `HTTP ${res.status}: ${err.slice(0, 150)}`;
-        }
-      } catch (e: any) {
-        errorsLog.gemini = e?.message || "Erreur réseau";
-      }
-    } else {
-      errorsLog.gemini = "Clé non définie dans l'environnement courant";
-    }
-
-    // 3. HUGGING FACE (Nouvel endpoint Router Serverless)
-    const hfToken = process.env.HF_TOKEN?.trim();
-    if (hfToken) {
-      try {
-        const res = await fetch(
-          "https://router.huggingface.co/hf-inference/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${hfToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "Qwen/Qwen2.5-72B-Instruct",
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: rawText },
-              ],
-              temperature: 0.2,
-              max_tokens: 1024,
-            }),
-          }
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          const refinedText = data.choices?.[0]?.message?.content?.trim();
-          if (refinedText) return NextResponse.json({ refinedText, provider: "huggingface" });
-        } else {
-          const err = await res.text();
-          errorsLog.huggingface = `HTTP ${res.status}: ${err.slice(0, 150)}`;
-        }
-      } catch (e: any) {
-        errorsLog.huggingface = e?.message || "Erreur réseau";
-      }
-    } else {
-      errorsLog.huggingface = "Clé non définie dans l'environnement courant";
-    }
-
-    // Retour détaillé si tout échoue pour débogage immédiat
+    // Visible dans les logs Vercel + renvoyé au client pour débogage
+    console.error("Tous les providers IA ont échoué :", JSON.stringify(errorsLog));
     return NextResponse.json(
       {
         error: "Échec de tous les providers IA.",
