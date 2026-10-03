@@ -6,6 +6,7 @@ import { AddClaimDialog } from "@/components/add-claim-dialog";
 import { ClaimList } from "@/components/claim-list";
 import { ExportInstaButton } from "@/components/export-insta-button";
 import { ExportEmailButton } from "@/components/export-email-button";
+import { ShareSiteButton } from "@/components/share-site-button";
 import { Badge } from "@/components/ui/badge";
 import { partitionClaims } from "@/lib/score";
 import type { Claim, Establishment, VoteType } from "@/lib/types";
@@ -42,7 +43,6 @@ export function LiveDocument({
             const newClaim = payload.new as Claim;
             if (newClaim.status !== "archived") {
               setClaims((prev) => {
-                // Ignore si l'élément existe déjà
                 if (prev.some((c) => c.id === newClaim.id)) return prev;
                 return [newClaim, ...prev];
               });
@@ -120,6 +120,7 @@ export function LiveDocument({
               establishment={currentEstablishment}
               claims={claims}
             />
+            <ShareSiteButton />
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
