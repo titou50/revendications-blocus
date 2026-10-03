@@ -10,7 +10,6 @@ function isRateLimited(ip: string): boolean {
   const now = Date.now();
   const entry = ipCache.get(ip);
 
-  // Nettoyage régulier du cache si expiré
   if (entry && now > entry.resetAt) {
     ipCache.delete(ip);
   }
@@ -18,12 +17,12 @@ function isRateLimited(ip: string): boolean {
   const currentEntry = ipCache.get(ip);
 
   if (!currentEntry) {
-    ipCache.set(ip, { count: 1, resetAt: now + 60 * 1000 }); // Fenêtre de 1 min
+    ipCache.set(ip, { count: 1, resetAt: now + 60 * 1000 });
     return false;
   }
 
   if (currentEntry.count >= 3) {
-    return true; // Bloqué si > 3 publications / minute
+    return true;
   }
 
   currentEntry.count += 1;
@@ -49,7 +48,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // 1. Récupération de l'IP du client et Rate Limit
+  // 1. Rate Limit par IP
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
   if (isRateLimited(clientIp)) {
@@ -60,7 +59,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { originalText, category, establishmentId } = await req.json();
+    const body = await req.json();
+    const { originalText, category, establishmentId } = body;
     const text = String(originalText ?? "").trim();
     const cat = category as ClaimCategory;
 
@@ -86,30 +86,38 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Établissement manquant" }, { status: 400 });
     }
 
-    // 4. Reformulation IA + Modération Groq
-    let formattedTitle: string;
+    // 4. Reformulation IA + Fallback de sécurité
+    let formattedTitle: string = text;
     try {
       formattedTitle = await formatClaim(text);
     } catch (err: any) {
-      return Response.json(
-        { error: err.message || "Contenu non conforme aux règles de modération." },
-        { status: 400 }
-      );
+      console.warn("Groq indisponible ou refus de modération, fallback sur texte original :", err?.message);
+      // Si c'est un problème de modération explicite, on bloque
+      if (err?.message?.includes("modération") || err?.message?.includes("conforme")) {
+        return Response.json(
+          { error: err.message },
+          { status: 400 }
+        );
+      }
     }
 
-    // 5. Insertion en BDD Supabase
+    // 5. Insertion BDD Supabase avec ID explicite
     const claim = await createClaim({
-      establishment_id: establishmentId,
+      id: crypto.randomUUID(),
+      establishment_id: String(establishmentId),
       category: cat,
       original_text: text,
-      formatted_title: formattedTitle,
+      formatted_title: formattedTitle || text,
     });
 
     return Response.json({ success: true, formattedTitle, claim }, { status: 201 });
-  } catch (error) {
-    console.error("Erreur POST /api/claims :", error);
+  } catch (error: any) {
+    console.error("Erreur détaillée POST /api/claims :", error);
     return Response.json(
-      { error: "Erreur serveur lors de la création de la revendication" },
+      { 
+        error: "Erreur serveur lors de la création de la revendication", 
+        details: error?.message || String(error)
+      },
       { status: 500 }
     );
   }
