@@ -34,10 +34,10 @@ export async function upsertEstablishment(est: {
     .upsert(
       {
         id: targetId,
+        code_uai: est.code_uai ?? targetId,
         name: est.name,
         city: est.city,
         type: est.type,
-        code_uai: est.code_uai ?? null,
       },
       { onConflict: "id" }
     )
@@ -89,6 +89,7 @@ export async function listClaims(establishmentId: string): Promise<Claim[]> {
 }
 
 export async function createClaim(claim: {
+  id?: string;
   establishment_id: string;
   category: "local" | "national";
   original_text: string;
@@ -97,6 +98,7 @@ export async function createClaim(claim: {
   const { data, error } = await supabaseAdmin
     .from("claims")
     .insert({
+      id: claim.id ?? crypto.randomUUID(),
       establishment_id: claim.establishment_id,
       category: claim.category,
       original_text: claim.original_text,
