@@ -115,7 +115,11 @@ export async function createClaim(claim: {
   return data as Claim;
 }
 
-export async function voteClaim(claimId: string, voteType: VoteType): Promise<Claim | null> {
+export async function voteClaim(
+  claimId: string,
+  voteType: VoteType,
+  sessionHash: string
+): Promise<Claim | null> {
   const { data: claim, error: fetchErr } = await supabaseAdmin
     .from("claims")
     .select("*")
@@ -124,8 +128,52 @@ export async function voteClaim(claimId: string, voteType: VoteType): Promise<Cl
 
   if (fetchErr || !claim) return null;
 
-  const newUp = voteType === "up" ? (claim.upvotes || 0) + 1 : claim.upvotes || 0;
-  const newDown = voteType === "down" ? (claim.downvotes || 0) + 1 : claim.downvotes || 0;
+  // 1. Récupération du vote existant pour cette session
+  const { data: existingVote } = await supabaseAdmin
+    .from("votes")
+    .select("vote_type")
+    .eq("claim_id", claimId)
+    .eq("session_hash", sessionHash)
+    .maybeSingle();
+
+  let upDelta = 0;
+  let downDelta = 0;
+
+  if (existingVote) {
+    // Si la session a déjà voté la même chose, on bloque
+    if (existingVote.vote_type === voteType) {
+      return claim as Claim;
+    }
+
+    // Si la session change d'avis (ex: up -> down)
+    if (voteType === "up") {
+      upDelta = 1;
+      downDelta = -1;
+    } else {
+      upDelta = -1;
+      downDelta = 1;
+    }
+
+    await supabaseAdmin
+      .from("votes")
+      .update({ vote_type: voteType })
+      .eq("claim_id", claimId)
+      .eq("session_hash", sessionHash);
+  } else {
+    // Premier vote de la session pour cette revendication
+    if (voteType === "up") {
+      upDelta = 1;
+    } else {
+      downDelta = 1;
+    }
+
+    await supabaseAdmin
+      .from("votes")
+      .insert({ claim_id: claimId, session_hash: sessionHash, vote_type: voteType });
+  }
+
+  const newUp = Math.max(0, (claim.upvotes || 0) + upDelta);
+  const newDown = Math.max(0, (claim.downvotes || 0) + downDelta);
 
   const { data: updated, error: updateErr } = await supabaseAdmin
     .from("claims")
