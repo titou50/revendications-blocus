@@ -16,34 +16,40 @@ export function ExportEmailButton({ establishment, claims }: ExportEmailButtonPr
   const nationalClaims = activeClaims.filter((c) => c.category === 'national');
   const localClaims = activeClaims.filter((c) => c.category === 'local');
 
-  // Construction de l'objet
-  const subject = `[MOBILISATION] Revendications et doléances des élèves - ${establishment.name}`;
+  const subject = `Revendications et doléances des élèves du ${establishment.name}`;
 
-  // Formatting des listes de revendications
-  const formatList = (list: Claim[]) =>
-    list.length > 0
-      ? list.map((c) => `• ${c.formatted_title || c.original_text}`).join('\n')
-      : '• Aucune revendication spécifique enregistrée à ce jour.';
+  // Formate les revendications de manière naturelle (puces simples)
+  const formatClaimsText = () => {
+    let text = '';
 
-  // Modèle d'e-mail institutionnel
-  const emailBody = `À l'attention de la Direction de l'établissement, du Rectorat et des autorités académiques,
+    if (localClaims.length > 0) {
+      text += `Au niveau de notre établissement :\n`;
+      text += localClaims.map((c) => `- ${c.formatted_title || c.original_text}`).join('\n');
+      text += '\n\n';
+    }
 
-Au nom des élèves et de la communauté étudiante de l'établissement ${establishment.name} (${establishment.city}), nous vous transmettons officiellement le cahier de doléances adopté par les personnes mobilisées.
+    if (nationalClaims.length > 0) {
+      text += `Au niveau national :\n`;
+      text += nationalClaims.map((c) => `- ${c.formatted_title || c.original_text}`).join('\n');
+    }
 
-Afin de garantir des conditions d'étude denses, dignes et justes, nous demandons des engagements fermes et immédiats sur les points suivants :
+    return text.trim() || '- Aucune revendication spécifique enregistrée à ce jour.';
+  };
 
--- REVENDICATIONS NATIONALES --
-${formatList(nationalClaims)}
+  // Corps de mail rédigé naturellement
+  const emailBody = `Madame, Monsieur,
 
--- REVENDICATIONS LOCALES --
-${formatList(localClaims)}
+Nous vous adressons ce message au nom des élèves mobilisés du ${establishment.name} (${establishment.city}) pour vous transmettre l'ensemble de nos revendications actuelles.
 
-Sans réponse concrète de votre part ni ouverture d'un dialogue constructif, les actions de mobilisation et les mouvements de blocage seront reconduits.
+Face à la situation, nous demandons des réponses et des engagements clairs sur les points suivants :
 
-Dans l'attente de vos retours rapides,
+${formatClaimsText()}
 
-Cordialement,
-Les élèves mobilisés de ${establishment.name}`;
+Sans prise en compte de ces demandes et sans ouverture d'un dialogue réel, le mouvement et les actions de blocage se poursuivront au sein de l'établissement.
+
+Nous restons dans l'attente de votre retour.
+
+Les élèves du ${establishment.name}`;
 
   const handleCopy = async () => {
     try {
@@ -62,7 +68,6 @@ Les élèves mobilisés de ${establishment.name}`;
 
   return (
     <>
-      {/* Bouton principal */}
       <button
         onClick={() => setIsOpen(true)}
         disabled={activeClaims.length === 0}
@@ -76,18 +81,17 @@ Les élèves mobilisés de ${establishment.name}`;
             d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 002-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
           />
         </svg>
-        <span>Envoyer aux autorités</span>
+        <span>Envoyer un e-mail officiel</span>
       </button>
 
-      {/* Modal d'aperçu et d'envoi */}
       {isOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
             {/* Header Modal */}
             <div className="p-5 border-b border-zinc-800 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-white">Communiqué Officiel par E-mail</h3>
-                <p className="text-xs text-zinc-400">Prêt à être envoyé au Rectorat ou à la Direction</p>
+                <h3 className="text-lg font-bold text-white">E-mail aux autorités</h3>
+                <p className="text-xs text-zinc-400">Direction, académie ou rectorat</p>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -101,7 +105,7 @@ Les élèves mobilisés de ${establishment.name}`;
             <div className="p-6 overflow-y-auto space-y-4">
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">
-                  Objet du message
+                  Objet
                 </label>
                 <div className="bg-zinc-950 border border-zinc-800 p-3 rounded-lg text-sm text-zinc-200 font-medium">
                   {subject}
@@ -110,7 +114,7 @@ Les élèves mobilisés de ${establishment.name}`;
 
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">
-                  Contenu de l'e-mail
+                  Contenu
                 </label>
                 <textarea
                   readOnly
@@ -136,7 +140,7 @@ Les élèves mobilisés de ${establishment.name}`;
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V8m0 0l3 3m-3-3l-3 3"
                       />
                     </svg>
                     <span>Copier le texte</span>
