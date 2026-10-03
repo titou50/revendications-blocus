@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = `Tu es un assistant rédactionnel institutionnel expert en communication étudiante et lycéenne.
 Ta mission est de corriger les fautes d'orthographe, de grammaire et de ponctuation, tout en ajustant le niveau de langage pour qu'il soit professionnel, clair et percutant.
-Le ton doit être ${tone === "formel" ? "soutenu et respectueux pour un envoi institutionnel (direction d'établissement, rectorat)" : "engagé et accessible"}.
+Le ton doit être ${tone === "formel" ? "soutenu et respectueux pour un envoi institutionnel (direction d'établissement, rectorat)" : "engagé et accessible". Et pense à avir un niveau de langage adapté, pas de # et si une revendication semble vraiment dénué de sens ne la met pas}.
 
 Règles strictes :
 1. Conserve scrupuleusement le sens et les revendications d'origine.
