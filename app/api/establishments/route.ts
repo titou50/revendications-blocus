@@ -36,29 +36,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Insertion / Mise à jour en BDD
-    const establishment = await upsertEstablishment({
-      id: code_uai,
-      code_uai,
-      name,
-      city,
-      type,
-    });
+    // 1. Insertion / Upsert BDD
+    let establishment;
+    try {
+      establishment = await upsertEstablishment({
+        id: code_uai,
+        code_uai,
+        name,
+        city,
+        type,
+      });
+    } catch (dbErr) {
+      console.error("Erreur upsertEstablishment :", dbErr);
+      return NextResponse.json(
+        { error: `Erreur BDD Supabase: ${dbErr instanceof Error ? dbErr.message : "Upsert échec"}` },
+        { status: 500 }
+      );
+    }
 
-    // 2. Traitement asynchrone de la session sans argument
-    const rawSessionId = await getSessionId();
-    const session = hashSession(rawSessionId);
-    const participant_count = await recordVisit(establishment.id, session);
+    // 2. Gestion Session & Visite
+    let participant_count = 1;
+    try {
+      const rawSessionId = await getSessionId();
+      const session = hashSession(rawSessionId);
+      participant_count = await recordVisit(establishment.id, session);
+    } catch (sessionErr) {
+      console.error("Erreur recordVisit/session :", sessionErr);
+      // On tolère l'échec de comptage pour ne pas bloquer l'accès à l'établissement
+    }
 
-    // 3. Réponse JSON explicite
+    // 3. Réponse valide
     return NextResponse.json({
       ...establishment,
       participant_count,
     });
   } catch (error) {
-    console.error("Erreur POST /api/establishments :", error);
+    console.error("Erreur globale POST /api/establishments :", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Erreur serveur lors de la sélection de l'établissement" },
+      { error: error instanceof Error ? error.message : "Erreur serveur critique" },
       { status: 500 }
     );
   }
