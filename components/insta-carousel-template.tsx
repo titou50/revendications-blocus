@@ -17,14 +17,15 @@ export function InstaSlide({
   totalSlides,
 }: InstaCarouselTemplateProps) {
   const isCover = slideIndex === 0;
+  const isCTA = slideIndex === totalSlides - 1 && totalSlides > 1;
 
   return (
     <div
       id={`insta-slide-${slideIndex}`}
       style={{ width: '1080px', height: '1080px', minWidth: '1080px', minHeight: '1080px' }}
-      className="bg-neutral-950 text-white p-12 flex flex-col justify-between font-sans relative overflow-hidden box-border shrink-0"
+      className="bg-neutral-950 text-white p-12 flex flex-col justify-between font-sans relative overflow-hidden box-border shrink-0 select-none"
     >
-      {/* Halo lumineux rouge / orange */}
+      {/* Background Halo */}
       <div className="absolute -top-24 -right-24 w-96 h-96 bg-red-600/25 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-orange-600/15 rounded-full blur-3xl pointer-events-none" />
 
@@ -47,6 +48,7 @@ export function InstaSlide({
       {/* Content */}
       <div className="my-auto py-6 z-10 w-full">
         {isCover ? (
+          /* SLIDE 1 : COVER */
           <div className="space-y-6 text-left my-auto">
             <span className="inline-block px-5 py-2 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 font-bold text-lg uppercase tracking-wide">
               COMMUNIQUÉ OFFICIEL
@@ -59,7 +61,31 @@ export function InstaSlide({
               {establishment.participant_count || 0} participant(s) mobilisé(s)
             </p>
           </div>
+        ) : isCTA ? (
+          /* SLIDE FINALE : CALL TO ACTION / PUB SITE */
+          <div className="space-y-8 text-center my-auto flex flex-col items-center justify-center">
+            <span className="inline-block px-5 py-2 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 font-bold text-lg uppercase tracking-wide">
+              REJOINS LA MOBILISATION
+            </span>
+            <h2 className="text-5xl font-black leading-tight tracking-tight text-white uppercase max-w-2xl">
+              VIENS FAIRE ENTENDRE TES REVENDICATIONS !
+            </h2>
+            <p className="text-2xl text-neutral-400 max-w-xl font-medium">
+              Ajoute tes idées, vote pour celles de ton lycée et suis l'avancement du mouvement en direct.
+            </p>
+
+            <div className="pt-4">
+              <div className="bg-gradient-to-r from-red-600 to-orange-600 p-1 rounded-2xl shadow-xl">
+                <div className="bg-neutral-950 px-8 py-4 rounded-[14px]">
+                  <span className="text-2xl font-black text-white font-mono tracking-wide">
+                    revendications-blocus.vercel.app
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
+          /* SLIDES INTERMÉDIAIRES : REVENDICATIONS */
           <div className="space-y-5 w-full">
             <h3 className="text-xl font-bold text-red-400 uppercase tracking-wide">
               REVENDICATIONS ({claims.length})
@@ -83,7 +109,7 @@ export function InstaSlide({
         )}
       </div>
 
-      {/* Footer sobre sans pub */}
+      {/* Footer */}
       <div className="border-t border-neutral-800 pt-6 flex items-center justify-between text-neutral-400 z-10">
         <span className="text-lg font-semibold">Mobilisation Étudiante & Lycéenne</span>
         {establishment.code_uai && (
