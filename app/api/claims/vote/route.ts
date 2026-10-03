@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { voteClaim } from "@/lib/db";
+import { getSessionId, hashSession } from "@/lib/session";
 import type { VoteType } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -10,10 +11,14 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Paramètres invalides" }, { status: 400 });
     }
 
-    const updatedClaim = await voteClaim(claimId, voteType as VoteType);
+    // Récupération de l'identifiant de session de l'utilisateur
+    const session = hashSession(await getSessionId());
+
+    // Passage du hash de session à la fonction de vote en BDD
+    const updatedClaim = await voteClaim(claimId, voteType as VoteType, session);
 
     if (!updatedClaim) {
-      return Response.json({ error: "Revendication introuvable" }, { status: 404 });
+      return Response.json({ error: "Revendication introuvable ou vote refusé" }, { status: 404 });
     }
 
     return Response.json({ success: true, claim: updatedClaim });
