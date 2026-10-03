@@ -10,7 +10,6 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      console.error("GROQ_API_KEY absente des variables d'environnement Vercel.");
       return NextResponse.json(
         { error: "Clé API Groq manquante (GROQ_API_KEY non configurée sur Vercel)." },
         { status: 500 }
@@ -24,7 +23,7 @@ Le ton doit être ${tone === "formel" ? "soutenu et respectueux pour un envoi in
 Règles strictes :
 1. Conserve scrupuleusement le sens et les revendications d'origine.
 2. Ne rajoute pas d'informations inventées.
-3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction (ne dis jamais "Voici le texte corrigé :").`;
+3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction.`;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -33,6 +32,7 @@ Règles strictes :
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        // Utilisation du nom de modèle valide sur Groq Console
         model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
@@ -45,22 +45,39 @@ Règles strictes :
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      console.error("Erreur renvoyée par l'API Groq :", errData);
-      return NextResponse.json(
-        { error: errData.error?.message || `Erreur API Groq (${response.status})` },
-        { status: response.status }
-      );
+      console.error("Erreur API Groq :", errData);
+
+      // Si le 70b échoue encore, fallback automatique sur llama3-8b-8192
+      const fallbackResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "llama3-8b-8192",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: rawText },
+          ],
+          temperature: 0.3,
+          max_tokens: 1024,
+        }),
+      });
+
+      if (!fallbackResponse.ok) {
+        return NextResponse.json(
+          { error: errData.error?.message || `Erreur API Groq (${response.status})` },
+          { status: response.status }
+        );
+      }
+
+      const fallbackData = await fallbackResponse.json();
+      return NextResponse.json({ refinedText: fallbackData.choices?.[0]?.message?.content?.trim() });
     }
 
     const data = await response.json();
     const refinedText = data.choices?.[0]?.message?.content?.trim();
-
-    if (!refinedText) {
-      return NextResponse.json(
-        { error: "La réponse de l'IA est vide." },
-        { status: 500 }
-      );
-    }
 
     return NextResponse.json({ refinedText });
   } catch (error) {
