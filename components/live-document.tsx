@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { AddClaimDialog } from "@/components/add-claim-dialog";
 import { ClaimList } from "@/components/claim-list";
 import { ExportInstaButton } from "@/components/export-insta-button";
+import { ExportEmailButton } from "@/components/export-email-button";
 import { Badge } from "@/components/ui/badge";
 import { partitionClaims } from "@/lib/score";
 import type { Claim, Establishment, VoteType } from "@/lib/types";
@@ -67,9 +68,8 @@ export function LiveDocument({
     setParticipants(establishment.participant_count);
   }, [establishment.participant_count]);
 
-  // Gestion du vote : on laisse le WebSocket (ou la réponse) faire la MAJ sans cumuler
+  // Gestion du vote
   async function vote(claimId: string, voteType: VoteType) {
-    // Mise à jour optimiste ou appel API
     const res = await fetch("/api/claims/vote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -79,7 +79,6 @@ export function LiveDocument({
     const data = await res.json();
     if (!res.ok) return;
 
-    // Remplacement strict par l'ID retourné par le serveur
     if (data.claim) {
       setClaims((prev) =>
         prev.map((c) => (c.id === data.claim.id ? data.claim : c))
@@ -97,6 +96,11 @@ export function LiveDocument({
   );
   const dismissed = [...local.dismissed, ...national.dismissed];
 
+  const currentEstablishment = {
+    ...establishment,
+    participant_count: participants,
+  };
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-36 pt-8">
       <header className="mb-10 border-b border-dashed pb-6">
@@ -107,10 +111,16 @@ export function LiveDocument({
           <h1 className="font-[family-name:var(--font-instrument)] text-4xl leading-tight sm:text-5xl">
             {establishment.name}
           </h1>
-          <ExportInstaButton
-            establishment={{ ...establishment, participant_count: participants }}
-            claims={claims}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <ExportInstaButton
+              establishment={currentEstablishment}
+              claims={claims}
+            />
+            <ExportEmailButton
+              establishment={currentEstablishment}
+              claims={claims}
+            />
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <a href="/" className="underline-offset-2 hover:text-foreground hover:underline">
