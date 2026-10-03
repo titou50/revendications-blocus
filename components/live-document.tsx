@@ -69,60 +69,79 @@ export function LiveDocument({
     setParticipants(establishment.participant_count);
   }, [establishment.participant_count]);
 
-  // Gestion du vote avec verrouillage localStorage et typage valide (upvotes / downvotes)
+  // Gestion du vote fluide avec bascule up/down et rollback en cas d'erreur
   async function vote(claimId: string, voteType: VoteType) {
     const votedKey = `voted_${claimId}`;
-    const previousVote = localStorage.getItem(votedKey);
+    const previousVote = localStorage.getItem(votedKey) as VoteType | null;
 
-    // Blocage si l'utilisateur revote exactement la même chose
+    // Si clic sur le même vote déjà effectué, on ne fait rien
     if (previousVote === voteType) return;
 
-    // Mise à jour optimiste du state local
+    // Sauvegarde de l'état précédent pour rollback si besoin
+    let previousClaimState: Claim | null = null;
+
+    // 1. Mise à jour optimiste du state local
     setClaims((prev) =>
       prev.map((c) => {
         if (c.id !== claimId) return c;
-        let upDelta = 0;
-        let downDelta = 0;
+        previousClaimState = { ...c };
+
+        let newUp = c.upvotes || 0;
+        let newDown = c.downvotes || 0;
 
         if (voteType === "up") {
-          upDelta = 1;
-          if (previousVote === "down") downDelta = -1;
+          newUp += 1;
+          if (previousVote === "down") {
+            newDown = Math.max(0, newDown - 1);
+          }
         } else if (voteType === "down") {
-          downDelta = 1;
-          if (previousVote === "up") upDelta = -1;
+          newDown += 1;
+          if (previousVote === "up") {
+            newUp = Math.max(0, newUp - 1);
+          }
         }
 
         return {
           ...c,
-          upvotes: Math.max(0, (c.upvotes || 0) + upDelta),
-          downvotes: Math.max(0, (c.downvotes || 0) + downDelta),
+          upvotes: newUp,
+          downvotes: newDown,
+          score: newUp - newDown,
         };
       })
     );
 
     localStorage.setItem(votedKey, voteType);
 
-    const res = await fetch("/api/claims/vote", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ claimId, voteType }),
-    });
+    try {
+      const res = await fetch("/api/claims/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ claimId, voteType }),
+      });
 
-    const data = await res.json();
-    if (!res.ok) {
-      // Revert du localStorage en cas d'erreur API
+      const data = await res.json();
+      if (!res.ok) throw new Error("Erreur lors de l'enregistrement du vote");
+
+      // Synchronisation exacte avec les données retournées par le serveur
+      if (data.claim) {
+        setClaims((prev) =>
+          prev.map((c) => (c.id === data.claim.id ? data.claim : c))
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      // Rollback du localStorage et du state React en cas d'échec
       if (previousVote) {
         localStorage.setItem(votedKey, previousVote);
       } else {
         localStorage.removeItem(votedKey);
       }
-      return;
-    }
 
-    if (data.claim) {
-      setClaims((prev) =>
-        prev.map((c) => (c.id === data.claim.id ? data.claim : c))
-      );
+      if (previousClaimState) {
+        setClaims((prev) =>
+          prev.map((c) => (c.id === claimId ? previousClaimState! : c))
+        );
+      }
     }
   }
 
