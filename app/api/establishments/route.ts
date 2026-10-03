@@ -45,9 +45,9 @@ export async function POST(req: NextRequest) {
       type,
     });
 
-    // 2. Traitement de la session et enregistrement de la visite
-    const sessionId = getSessionId(req);
-    const session = hashSession(sessionId);
+    // 2. Traitement asynchrone de la session sans argument
+    const rawSessionId = await getSessionId();
+    const session = hashSession(rawSessionId);
     const participant_count = await recordVisit(establishment.id, session);
 
     // 3. Réponse JSON explicite
