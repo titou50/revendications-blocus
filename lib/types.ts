@@ -12,7 +12,7 @@ export interface Establishment {
 }
 
 export interface EstablishmentSearchHit {
-  id: string;
+  id?: string;
   name: string;
   city: string;
   type: string;
