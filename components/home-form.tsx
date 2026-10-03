@@ -76,7 +76,9 @@ export function HomeForm() {
       setError("Indique ton nom et prénom pour continuer.");
       return;
     }
-    setSubmitting(hit.code_uai);
+
+    const hitId = hit.code_uai ?? hit.id ?? hit.name;
+    setSubmitting(hitId);
     setError(null);
     localStorage.setItem(
       NAME_KEY,
@@ -153,26 +155,29 @@ export function HomeForm() {
           {loading ? "Recherche…" : hits.length ? `${hits.length} résultat(s)` : "Autocomplétion Open Data"}
         </div>
         <ul className="max-h-80 divide-y overflow-auto">
-          {hits.map((hit) => (
-            <li key={hit.code_uai}>
-              <button
-                type="button"
-                disabled={Boolean(submitting)}
-                onClick={() => openEstablishment(hit)}
-                className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-accent/60 disabled:opacity-60"
-              >
-                <span>
-                  <span className="block font-medium">{hit.name}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {hit.city} · {hit.type} · {hit.code_uai}
+          {hits.map((hit, idx) => {
+            const hitKey = hit.code_uai ?? hit.id ?? `hit-${idx}`;
+            return (
+              <li key={hitKey}>
+                <button
+                  type="button"
+                  disabled={Boolean(submitting)}
+                  onClick={() => openEstablishment(hit)}
+                  className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-accent/60 disabled:opacity-60"
+                >
+                  <span>
+                    <span className="block font-medium">{hit.name}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {hit.city} · {hit.type} {hit.code_uai ? `· ${hit.code_uai}` : ""}
+                    </span>
                   </span>
-                </span>
-                <span className="text-xs text-primary">
-                  {submitting === hit.code_uai ? "Ouverture…" : "Ouvrir"}
-                </span>
-              </button>
-            </li>
-          ))}
+                  <span className="text-xs text-primary">
+                    {submitting === hitKey ? "Ouverture…" : "Ouvrir"}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
           {!loading && canSearch && hits.length === 0 ? (
             <li className="px-4 py-8 text-center text-sm text-muted-foreground">
               Aucun établissement trouvé. Essaie un nom plus court ou une autre ville.
