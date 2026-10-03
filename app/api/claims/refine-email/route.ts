@@ -17,7 +17,9 @@ Règles strictes :
 2. Ne rajoute pas d'informations inventées.
 3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction.`;
 
-    // 1. MISTRAL AI (Niveau 1)
+    const errorsLog: Record<string, string> = {};
+
+    // 1. MISTRAL AI
     const mistralKey = process.env.MISTRAL_API_KEY?.trim();
     if (mistralKey) {
       try {
@@ -41,23 +43,32 @@ Règles strictes :
           const data = await res.json();
           const refinedText = data.choices?.[0]?.message?.content?.trim();
           if (refinedText) return NextResponse.json({ refinedText, provider: "mistral" });
+        } else {
+          const err = await res.text();
+          errorsLog.mistral = `HTTP ${res.status}: ${err.slice(0, 150)}`;
         }
-      } catch (e) {
-        console.warn("Échec Mistral, bascule vers Gemini...", e);
+      } catch (e: any) {
+        errorsLog.mistral = e?.message || "Erreur réseau";
       }
+    } else {
+      errorsLog.mistral = "Clé non définie dans l'environnement courant";
     }
 
-    // 2. GOOGLE GEMINI (Niveau 2)
+    // 2. GOOGLE GEMINI (v1beta generateContent)
     const geminiKey = process.env.GEMINI_API_KEY?.trim();
     if (geminiKey) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ parts: [{ text: rawText }] }],
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: `${systemPrompt}\n\nTexte à corriger :\n${rawText}` }],
+              },
+            ],
             generationConfig: { temperature: 0.2 },
           }),
         });
@@ -66,18 +77,23 @@ Règles strictes :
           const data = await res.json();
           const refinedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
           if (refinedText) return NextResponse.json({ refinedText, provider: "gemini" });
+        } else {
+          const err = await res.text();
+          errorsLog.gemini = `HTTP ${res.status}: ${err.slice(0, 150)}`;
         }
-      } catch (e) {
-        console.warn("Échec Gemini, bascule vers Hugging Face...", e);
+      } catch (e: any) {
+        errorsLog.gemini = e?.message || "Erreur réseau";
       }
+    } else {
+      errorsLog.gemini = "Clé non définie dans l'environnement courant";
     }
 
-    // 3. HUGGING FACE INFERENCE API (Niveau 3)
+    // 3. HUGGING FACE (Nouvel endpoint Router Serverless)
     const hfToken = process.env.HF_TOKEN?.trim();
     if (hfToken) {
       try {
         const res = await fetch(
-          "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions",
+          "https://router.huggingface.co/hf-inference/v1/chat/completions",
           {
             method: "POST",
             headers: {
@@ -100,14 +116,23 @@ Règles strictes :
           const data = await res.json();
           const refinedText = data.choices?.[0]?.message?.content?.trim();
           if (refinedText) return NextResponse.json({ refinedText, provider: "huggingface" });
+        } else {
+          const err = await res.text();
+          errorsLog.huggingface = `HTTP ${res.status}: ${err.slice(0, 150)}`;
         }
-      } catch (e) {
-        console.error("Échec Hugging Face :", e);
+      } catch (e: any) {
+        errorsLog.huggingface = e?.message || "Erreur réseau";
       }
+    } else {
+      errorsLog.huggingface = "Clé non définie dans l'environnement courant";
     }
 
+    // Retour détaillé si tout échoue pour débogage immédiat
     return NextResponse.json(
-      { error: "Tous les fournisseurs d'IA (Mistral, Gemini, HF) ont échoué." },
+      {
+        error: "Échec de tous les providers IA.",
+        details: errorsLog,
+      },
       { status: 500 }
     );
   } catch (error) {
