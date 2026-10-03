@@ -85,7 +85,7 @@ async function openAICompatible(
         { role: "user", content: text },
       ],
       temperature: 0.2,
-      max_tokens: 1024,
+      max_tokens: 2048,
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -139,15 +139,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Le texte à corriger est vide." }, { status: 400 });
     }
 
-    const systemPrompt = `Tu es un assistant rédactionnel institutionnel expert en communication étudiante et lycéenne.
-Ta mission est de corriger les fautes d'orthographe, de grammaire et de ponctuation, tout en ajustant le niveau de langage pour qu'il soit professionnel, clair et percutant.
-Le ton doit être ${tone === "formel" ? "soutenu et respectueux pour un envoi institutionnel (direction d'établissement, rectorat)" : "engagé et accessible". Et pense à avir un niveau de langage adapté, pas de # et si une revendication semble vraiment dénué de sens ne la met pas}.
+    const systemPrompt = `Tu reçois un e-mail contenant une liste de revendications d'élèves ou d'étudiants.
+Ta seule tâche : réécrire chaque revendication de la liste. Tout le reste de l'e-mail (objet, formule d'appel, introduction, conclusion, signature, saluts, sauts de ligne, ponctuation hors revendications) doit être recopié MOT POUR MOT, sans le moindre changement.
 
-Règles strictes :
-1. Conserve scrupuleusement le sens et les revendications d'origine.
-2. Ne rajoute pas d'informations inventées.
-3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction.
-4. Le texte sera collé tel quel dans un e-mail : écris en texte brut. N'utilise AUCUNE mise en forme Markdown (pas de **, pas de #, pas de tirets de liste, pas de puces). Pas de titre en gras : si une partie a un intitulé, écris-le simplement sur sa propre ligne, suivi d'un saut de ligne.`;
+Pour chaque revendication : corrige l'orthographe, la grammaire et la ponctuation, et reformule-la dans un langage ${tone === "formel" ? "soutenu et respectueux (direction d'établissement, rectorat)" : "engagé et accessible"}, clair et percutant. Conserve son sens, sans rien inventer. Si une revendication est totalement dénuée de sens, supprime-la.
+
+Le style doit sonner naturel et humain, comme écrit par un élève ou un étudiant sincère : évite les formules génériques et les tournures typiques d'une IA (« il est essentiel de », « il est primordial de », « n'hésitez pas à »), les mots pompeux et les tirets longs.
+
+Conserve les marqueurs de liste (numéros, tirets) et la structure d'origine. Réponds uniquement avec l'e-mail complet, sans commentaire ni introduction, en texte brut : n'ajoute aucun Markdown (pas de ** ni de #).`;
 
     const providers: {
       name: string;
