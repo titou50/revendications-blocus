@@ -46,7 +46,7 @@ Face à la situation, nous demandons des réponses et des engagements clairs sur
 
 ${formatClaimsText()}
 
-Sans prise en compte de ces demandes et sans ouverture d'un dialogue réel, le mouvement et les actions de blocage se poursuivront au sein de l'établissement.
+Sans prise en compte de ces demandes et sans ouverture d'un dialogue réel, le mouvement et les actions de blocage se poursuivront.
 
 Nous restons dans l'attente de votre retour.
 
