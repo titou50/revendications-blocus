@@ -39,7 +39,7 @@ export async function formatClaim(originalText: string): Promise<string> {
     });
 
     const response = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model: "llama-3.3-70b-versatile",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: trimmed },
@@ -50,7 +50,6 @@ export async function formatClaim(originalText: string): Promise<string> {
 
     const formatted = response.choices[0]?.message?.content?.trim() || "";
 
-    // Fix Faille Claude : Normalisation flexible pour détecter 'REJECTED' sous toutes ses formes
     if (formatted.toUpperCase().replace(/[^A-Z]/g, "").includes("REJECTED")) {
       throw new Error("REJECTED");
     }
