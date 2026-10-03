@@ -59,8 +59,8 @@ Les élèves du ${establishment.name}`;
     setEditableBody(generateDefaultBody());
   }, [claims, establishment]);
 
-  // Appel à l'API Groq pour réviser le style et la grammaire
-  const handleRefineWithGroq = async () => {
+  // Appel à l'API pour réviser le style et la grammaire via le pipeline IA multi-providers
+  const handleRefineWithIA = async () => {
     try {
       setIsCorrecting(true);
       const res = await fetch('/api/claims/refine-email', {
@@ -70,14 +70,20 @@ Les élèves du ${establishment.name}`;
       });
 
       const data = await res.json();
+
       if (res.ok && data.refinedText) {
         setEditableBody(data.refinedText);
       } else {
-        alert(data.error || 'Erreur lors de la correction du texte par Groq.');
+        if (data.details) {
+          console.error('Détails des échecs providers :', data.details);
+          alert(`Erreur IA : ${data.error}\n\nConsultez la console pour plus de détails sur chaque fournisseur.`);
+        } else {
+          alert(data.error || 'Erreur lors de la correction du texte.');
+        }
       }
     } catch (err) {
-      console.error('Erreur lors de la connexion à Groq :', err);
-      alert('Impossible de contacter le service de correction AI.');
+      console.error('Erreur lors de la connexion à l\'API IA :', err);
+      alert('Impossible de contacter le service de correction IA.');
     } finally {
       setIsCorrecting(false);
     }
@@ -151,18 +157,18 @@ Les élèves du ${establishment.name}`;
                   </label>
                   <button
                     type="button"
-                    onClick={handleRefineWithGroq}
+                    onClick={handleRefineWithIA}
                     disabled={isCorrecting}
                     className="text-xs flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90 text-white font-semibold rounded-lg transition disabled:opacity-50 shadow"
                   >
                     {isCorrecting ? (
-                      <span>Correction Groq...</span>
+                      <span>Correction en cours...</span>
                     ) : (
                       <>
                         <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                           <path d="M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z" />
                         </svg>
-                        <span>Corriger & Adapter (Groq)</span>
+                        <span>Corriger & Adapter (IA)</span>
                       </>
                     )}
                   </button>
