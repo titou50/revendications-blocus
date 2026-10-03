@@ -17,11 +17,11 @@ Règles strictes :
 2. Ne rajoute pas d'informations inventées.
 3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction.`;
 
-    // 1. TENTATIVE VIA MISTRAL AI
+    // 1. MISTRAL AI (Niveau 1)
     const mistralKey = process.env.MISTRAL_API_KEY?.trim();
     if (mistralKey) {
       try {
-        const responseMistral = await fetch("https://api.mistral.ai/v1/chat/completions", {
+        const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${mistralKey}`,
@@ -37,26 +37,22 @@ Règles strictes :
           }),
         });
 
-        if (responseMistral.ok) {
-          const data = await responseMistral.json();
+        if (res.ok) {
+          const data = await res.json();
           const refinedText = data.choices?.[0]?.message?.content?.trim();
-          if (refinedText) {
-            return NextResponse.json({ refinedText, provider: "mistral" });
-          }
-        } else {
-          console.warn("Échec Mistral AI, passage au fallback Gemini...");
+          if (refinedText) return NextResponse.json({ refinedText, provider: "mistral" });
         }
-      } catch (err) {
-        console.warn("Erreur réseau Mistral AI, passage au fallback Gemini...", err);
+      } catch (e) {
+        console.warn("Échec Mistral, bascule vers Gemini...", e);
       }
     }
 
-    // 2. TENTATIVE VIA GOOGLE AI STUDIO (GEMINI) EN FALLBACK
+    // 2. GOOGLE GEMINI (Niveau 2)
     const geminiKey = process.env.GEMINI_API_KEY?.trim();
     if (geminiKey) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
-        const responseGemini = await fetch(url, {
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -66,20 +62,52 @@ Règles strictes :
           }),
         });
 
-        if (responseGemini.ok) {
-          const data = await responseGemini.json();
+        if (res.ok) {
+          const data = await res.json();
           const refinedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          if (refinedText) {
-            return NextResponse.json({ refinedText, provider: "gemini" });
-          }
+          if (refinedText) return NextResponse.json({ refinedText, provider: "gemini" });
         }
-      } catch (err) {
-        console.error("Erreur réseau Gemini :", err);
+      } catch (e) {
+        console.warn("Échec Gemini, bascule vers Hugging Face...", e);
+      }
+    }
+
+    // 3. HUGGING FACE INFERENCE API (Niveau 3)
+    const hfToken = process.env.HF_TOKEN?.trim();
+    if (hfToken) {
+      try {
+        const res = await fetch(
+          "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${hfToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "Qwen/Qwen2.5-72B-Instruct",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: rawText },
+              ],
+              temperature: 0.2,
+              max_tokens: 1024,
+            }),
+          }
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          const refinedText = data.choices?.[0]?.message?.content?.trim();
+          if (refinedText) return NextResponse.json({ refinedText, provider: "huggingface" });
+        }
+      } catch (e) {
+        console.error("Échec Hugging Face :", e);
       }
     }
 
     return NextResponse.json(
-      { error: "Aucun service d'IA n'a pu répondre. Vérifie MISTRAL_API_KEY et GEMINI_API_KEY." },
+      { error: "Tous les fournisseurs d'IA (Mistral, Gemini, HF) ont échoué." },
       { status: 500 }
     );
   } catch (error) {
