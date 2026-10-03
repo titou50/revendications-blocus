@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { toPng } from 'html-to-image';
 import type { Establishment } from '@/lib/types';
 
+const SITE_URL = "https://revendications-blocus.vercel.app";
+
 interface ExportStoryButtonProps {
   establishment: Establishment;
 }
@@ -95,7 +97,7 @@ export function ExportStoryButton({ establishment }: ExportStoryButtonProps) {
                 </div>
 
                 <div className="text-[10px] text-zinc-500 font-mono">
-                  revendications-blocus.vercel.app
+                  {SITE_URL.replace("https://", "")}
                 </div>
               </div>
 
@@ -125,7 +127,7 @@ export function ExportStoryButton({ establishment }: ExportStoryButtonProps) {
           {/* Header Story */}
           <div className="z-10 text-center space-y-3 pt-12">
             <span className="text-red-500 font-black tracking-widest text-3xl uppercase block">
-              PLATFORM INTER-LYCÉES & ÉTUDIANTE
+              PLATEFORME INTER-LYCÉES & ÉTUDIANTE
             </span>
             <p className="text-2xl text-neutral-400 font-medium">
               Collèges · Lycées · Universités de toute la France
@@ -161,7 +163,7 @@ export function ExportStoryButton({ establishment }: ExportStoryButtonProps) {
                   🔗 AJOUTE LE STICKER LIEN ICI
                 </span>
                 <span className="text-lg text-neutral-400 block mt-1 font-mono">
-                  revendications-blocus.vercel.app
+                  {SITE_URL.replace("https://", "")}
                 </span>
               </div>
             </div>
