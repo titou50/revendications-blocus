@@ -22,7 +22,8 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
     claimChunks.push(activeClaims.slice(i, i + CLAIMS_PER_SLIDE));
   }
 
-  const totalSlides = 1 + claimChunks.length;
+  // Cover (1) + Chunks de revendications + Slide CTA finale (1)
+  const totalSlides = 2 + claimChunks.length;
 
   const handleDownloadSlide = async (slideIndex: number) => {
     const slideElement = document.getElementById(`insta-slide-${slideIndex}`);
@@ -45,6 +46,12 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
     } finally {
       setDownloadingIndex(null);
     }
+  };
+
+  // Helper pour attribuer les bonnes revendications à chaque slide
+  const getClaimsForSlide = (idx: number) => {
+    if (idx === 0 || idx === totalSlides - 1) return [];
+    return claimChunks[idx - 1] || [];
   };
 
   return (
@@ -91,7 +98,7 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
                   <div className="w-full aspect-square scale-90 origin-top rounded-lg overflow-hidden flex items-center justify-center">
                     <InstaSlide
                       establishment={establishment}
-                      claims={idx === 0 ? [] : claimChunks[idx - 1]}
+                      claims={getClaimsForSlide(idx)}
                       slideIndex={idx}
                       totalSlides={totalSlides}
                     />
@@ -121,14 +128,16 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
         </div>
       )}
 
-      {/* Rendu masqué hors-écran garanti pour la capture via ID */}
+      {/* Rendu masqué hors-écran pour la capture via ID */}
       <div className="fixed top-[9999px] left-[9999px] pointer-events-none opacity-0">
+        {/* Cover (Slide 0) */}
         <InstaSlide
           establishment={establishment}
           claims={[]}
           slideIndex={0}
           totalSlides={totalSlides}
         />
+        {/* Revendications (Slides 1 à n-2) */}
         {claimChunks.map((chunk, idx) => (
           <InstaSlide
             key={idx}
@@ -138,6 +147,13 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
             totalSlides={totalSlides}
           />
         ))}
+        {/* Call to Action (Slide n-1) */}
+        <InstaSlide
+          establishment={establishment}
+          claims={[]}
+          slideIndex={totalSlides - 1}
+          totalSlides={totalSlides}
+        />
       </div>
     </>
   );
