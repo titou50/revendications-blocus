@@ -8,14 +8,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Le texte à corriger est vide." }, { status: 400 });
     }
 
-    const apiKey = process.env.GROQ_API_KEY?.trim();
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Clé API Groq manquante (GROQ_API_KEY non configurée sur Vercel)." },
-        { status: 500 }
-      );
-    }
-
     const systemPrompt = `Tu es un assistant rédactionnel institutionnel expert en communication étudiante et lycéenne.
 Ta mission est de corriger les fautes d'orthographe, de grammaire et de ponctuation, tout en ajustant le niveau de langage pour qu'il soit professionnel, clair et percutant.
 Le ton doit être ${tone === "formel" ? "soutenu et respectueux pour un envoi institutionnel (direction d'établissement, rectorat)" : "engagé et accessible"}.
@@ -25,57 +17,73 @@ Règles strictes :
 2. Ne rajoute pas d'informations inventées.
 3. Retourne UNIQUEMENT le texte corrigé et reformulé, sans méta-commentaire ni formule d'introduction.`;
 
-    const fetchGroq = async (model: string) => {
-      return await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: rawText },
-          ],
-          temperature: 0.3,
-          max_tokens: 1024,
-        }),
-      });
-    };
+    // 1. TENTATIVE VIA MISTRAL AI
+    const mistralKey = process.env.MISTRAL_API_KEY?.trim();
+    if (mistralKey) {
+      try {
+        const responseMistral = await fetch("https://api.mistral.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${mistralKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "mistral-small-latest",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: rawText },
+            ],
+            temperature: 0.2,
+          }),
+        });
 
-    // 1. Essai principal sur llama-3.3-70b-versatile
-    let response = await fetchGroq("llama-3.3-70b-versatile");
-
-    // 2. Fallback automatique sur llama-3.1-8b-instant si le 70B échoue
-    if (!response.ok) {
-      const errDataPrimary = await response.json().catch(() => ({}));
-      console.warn("Échec llama-3.3-70b-versatile, bascule sur llama-3.1-8b-instant :", errDataPrimary);
-
-      response = await fetchGroq("llama-3.1-8b-instant");
-
-      if (!response.ok) {
-        const errDataFallback = await response.json().catch(() => ({}));
-        return NextResponse.json(
-          { error: errDataFallback.error?.message || errDataPrimary.error?.message || `Erreur API Groq (${response.status})` },
-          { status: response.status }
-        );
+        if (responseMistral.ok) {
+          const data = await responseMistral.json();
+          const refinedText = data.choices?.[0]?.message?.content?.trim();
+          if (refinedText) {
+            return NextResponse.json({ refinedText, provider: "mistral" });
+          }
+        } else {
+          console.warn("Échec Mistral AI, passage au fallback Gemini...");
+        }
+      } catch (err) {
+        console.warn("Erreur réseau Mistral AI, passage au fallback Gemini...", err);
       }
     }
 
-    const data = await response.json();
-    const refinedText = data.choices?.[0]?.message?.content?.trim();
+    // 2. TENTATIVE VIA GOOGLE AI STUDIO (GEMINI) EN FALLBACK
+    const geminiKey = process.env.GEMINI_API_KEY?.trim();
+    if (geminiKey) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+        const responseGemini = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ parts: [{ text: rawText }] }],
+            generationConfig: { temperature: 0.2 },
+          }),
+        });
 
-    if (!refinedText) {
-      return NextResponse.json({ error: "Réponse vide de l'IA." }, { status: 500 });
+        if (responseGemini.ok) {
+          const data = await responseGemini.json();
+          const refinedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (refinedText) {
+            return NextResponse.json({ refinedText, provider: "gemini" });
+          }
+        }
+      } catch (err) {
+        console.error("Erreur réseau Gemini :", err);
+      }
     }
 
-    return NextResponse.json({ refinedText });
-  } catch (error) {
-    console.error("Erreur serveur POST /api/claims/refine-email :", error);
     return NextResponse.json(
-      { error: "Erreur interne lors du traitement du texte." },
+      { error: "Aucun service d'IA n'a pu répondre. Vérifie MISTRAL_API_KEY et GEMINI_API_KEY." },
       { status: 500 }
     );
+  } catch (error) {
+    console.error("Erreur serveur POST /api/claims/refine-email :", error);
+    return NextResponse.json({ error: "Erreur interne serveur." }, { status: 500 });
   }
 }
