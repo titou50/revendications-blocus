@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Claim, Establishment } from '@/lib/types';
 
 interface ExportEmailButtonProps {
@@ -11,6 +11,7 @@ interface ExportEmailButtonProps {
 export function ExportEmailButton({ establishment, claims }: ExportEmailButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isCorrecting, setIsCorrecting] = useState(false);
 
   const activeClaims = claims.filter((c) => c.status !== 'archived');
   const nationalClaims = activeClaims.filter((c) => c.category === 'national');
@@ -18,7 +19,7 @@ export function ExportEmailButton({ establishment, claims }: ExportEmailButtonPr
 
   const subject = `Revendications et doléances des élèves du ${establishment.name}`;
 
-  // Formate les revendications de manière naturelle (puces simples)
+  // Formate les revendications de manière naturelle
   const formatClaimsText = () => {
     let text = '';
 
@@ -36,8 +37,8 @@ export function ExportEmailButton({ establishment, claims }: ExportEmailButtonPr
     return text.trim() || '- Aucune revendication spécifique enregistrée à ce jour.';
   };
 
-  // Corps de mail rédigé naturellement
-  const emailBody = `Madame, Monsieur,
+  // Génération du texte par défaut
+  const generateDefaultBody = () => `Madame, Monsieur,
 
 Nous vous adressons ce message au nom des élèves mobilisés du ${establishment.name} (${establishment.city}) pour vous transmettre l'ensemble de nos revendications actuelles.
 
@@ -51,9 +52,40 @@ Nous restons dans l'attente de votre retour.
 
 Les élèves du ${establishment.name}`;
 
+  const [editableBody, setEditableBody] = useState(generateDefaultBody());
+
+  // Met à jour le corps du texte si les revendications changent
+  useEffect(() => {
+    setEditableBody(generateDefaultBody());
+  }, [claims, establishment]);
+
+  // Appel à l'API Groq pour réviser le style et la grammaire
+  const handleRefineWithGroq = async () => {
+    try {
+      setIsCorrecting(true);
+      const res = await fetch('/api/claims/refine-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawText: editableBody, tone: 'formel' }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.refinedText) {
+        setEditableBody(data.refinedText);
+      } else {
+        alert(data.error || 'Erreur lors de la correction du texte par Groq.');
+      }
+    } catch (err) {
+      console.error('Erreur lors de la connexion à Groq :', err);
+      alert('Impossible de contacter le service de correction AI.');
+    } finally {
+      setIsCorrecting(false);
+    }
+  };
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(`Objet : ${subject}\n\n${emailBody}`);
+      await navigator.clipboard.writeText(`Objet : ${subject}\n\n${editableBody}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -62,7 +94,7 @@ Les élèves du ${establishment.name}`;
   };
 
   const handleMailTo = () => {
-    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(editableBody)}`;
     window.location.href = mailtoUrl;
   };
 
@@ -113,14 +145,33 @@ Les élèves du ${establishment.name}`;
               </div>
 
               <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">
-                  Contenu
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                    Contenu du message
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleRefineWithGroq}
+                    disabled={isCorrecting}
+                    className="text-xs flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90 text-white font-semibold rounded-lg transition disabled:opacity-50 shadow"
+                  >
+                    {isCorrecting ? (
+                      <span>Correction Groq...</span>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                          <path d="M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z" />
+                        </svg>
+                        <span>Corriger & Adapter (Groq)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <textarea
-                  readOnly
-                  value={emailBody}
+                  value={editableBody}
+                  onChange={(e) => setEditableBody(e.target.value)}
                   rows={12}
-                  className="w-full bg-zinc-950 border border-zinc-800 p-4 rounded-xl text-sm text-zinc-300 font-mono leading-relaxed focus:outline-none resize-none"
+                  className="w-full bg-zinc-950 border border-zinc-800 p-4 rounded-xl text-sm text-zinc-300 font-mono leading-relaxed focus:outline-none focus:border-purple-500/50 resize-none"
                 />
               </div>
             </div>
