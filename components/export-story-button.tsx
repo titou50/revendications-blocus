@@ -72,18 +72,21 @@ export function ExportStoryButton({ establishment }: ExportStoryButtonProps) {
               <div className="w-[240px] h-[426px] rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 relative bg-neutral-950 flex flex-col justify-between p-6 text-white text-center">
                 <div className="space-y-1">
                   <span className="text-[10px] font-extrabold text-red-500 tracking-wider uppercase block">
-                    BLOCUS & MOBILISATION
+                    MOBILISATION INTER-LYCÉES
                   </span>
-                  <h4 className="text-sm font-black truncate">{establishment.name}</h4>
+                  <p className="text-[11px] font-medium text-zinc-400">
+                    Chaque établissement a sa page
+                  </p>
                 </div>
 
                 <div className="space-y-3 my-auto">
-                  <h3 className="text-xl font-black leading-tight uppercase">
+                  <h3 className="text-lg font-black leading-tight uppercase">
                     FAIS ENTENDRE TES REVENDICATIONS !
                   </h3>
-                  <p className="text-xs text-zinc-400">
-                    Vote et ajoute tes propositions pour notre établissement
-                  </p>
+                  <div className="bg-zinc-900 border border-zinc-800 p-2 rounded-xl">
+                    <span className="text-[10px] text-zinc-400 block">Page actuelle :</span>
+                    <span className="text-xs font-bold text-white block truncate">{establishment.name}</span>
+                  </div>
                   <div className="mt-2 border-2 border-dashed border-red-500/50 bg-red-500/10 p-2 rounded-xl">
                     <span className="text-[10px] font-bold text-red-400 uppercase block">
                       📍 Coller le sticker lien ici
@@ -121,27 +124,38 @@ export function ExportStoryButton({ establishment }: ExportStoryButtonProps) {
 
           {/* Header Story */}
           <div className="z-10 text-center space-y-3 pt-12">
-            <span className="text-red-500 font-black tracking-widest text-2xl uppercase block">
-              BLOCUS & MOBILISATION
+            <span className="text-red-500 font-black tracking-widest text-3xl uppercase block">
+              PLATFORM INTER-LYCÉES & ÉTUDIANTE
             </span>
-            <h1 className="text-5xl font-black text-white">{establishment.name}</h1>
-            <p className="text-2xl text-neutral-400 font-medium">{establishment.city}</p>
+            <p className="text-2xl text-neutral-400 font-medium">
+              Collèges · Lycées · Universités de toute la France
+            </p>
           </div>
 
-          {/* Corps de Story avec zone dédiée au sticker */}
-          <div className="z-10 text-center space-y-10 my-auto px-8">
+          {/* Corps de Story avec clarification inter-lycées */}
+          <div className="z-10 text-center space-y-8 my-auto px-8">
             <span className="inline-block px-8 py-3 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 font-bold text-2xl uppercase tracking-wider">
-              REJOINS LA MOBILISATION
+              TROUVE OU CRÉE TON ÉTABLISSEMENT
             </span>
-            <h2 className="text-7xl font-black leading-tight tracking-tight text-white uppercase">
-              VIENS FAIRE ENTENDRE TES REVENDICATIONS !
+            <h2 className="text-6xl font-black leading-tight tracking-tight text-white uppercase">
+              FAIS ENTENDRE LES REVENDICATIONS DE TON LYCÉE !
             </h2>
             <p className="text-3xl text-neutral-300 font-medium max-w-2xl mx-auto leading-relaxed">
-              Ajoute tes idées, vote pour celles de ton lycée et suis l'avancement du mouvement.
+              Propose des idées, vote pour les priorités et génère les communiqués officiels de ton établissement.
             </p>
 
+            {/* Encadré d'exemple / établissement courant */}
+            <div className="bg-neutral-900/80 border border-neutral-800 p-6 rounded-2xl max-w-xl mx-auto">
+              <span className="text-lg text-neutral-400 block uppercase font-bold tracking-wider">
+                Focus Établissement :
+              </span>
+              <span className="text-3xl font-black text-white block mt-1">
+                {establishment.name} ({establishment.city})
+              </span>
+            </div>
+
             {/* Zone indicative pour coller le lien Instagram */}
-            <div className="pt-8">
+            <div className="pt-4">
               <div className="border-4 border-dashed border-red-500/60 bg-red-950/40 p-8 rounded-3xl max-w-xl mx-auto shadow-2xl">
                 <span className="text-2xl font-black text-red-400 uppercase tracking-wide block">
                   🔗 AJOUTE LE STICKER LIEN ICI
@@ -155,8 +169,10 @@ export function ExportStoryButton({ establishment }: ExportStoryButtonProps) {
 
           {/* Footer Story */}
           <div className="z-10 border-t border-neutral-800 pt-8 flex justify-between items-center text-neutral-400 text-2xl font-semibold pb-12">
-            <span>Mobilisation Étudiante & Lycéenne</span>
-            <span className="font-mono text-neutral-500">{establishment.code_uai || ''}</span>
+            <span>Réseau National de Mobilisation</span>
+            <span className="font-mono text-neutral-500">
+              {establishment.type} · {establishment.city}
+            </span>
           </div>
         </div>
       </div>
