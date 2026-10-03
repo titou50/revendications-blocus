@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { AddClaimDialog } from "@/components/add-claim-dialog";
 import { ClaimList } from "@/components/claim-list";
 import { ExportInstaButton } from "@/components/export-insta-button";
+import { ExportStoryButton } from "@/components/export-story-button";
 import { ExportEmailButton } from "@/components/export-email-button";
 import { ShareSiteButton } from "@/components/share-site-button";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +116,9 @@ export function LiveDocument({
             <ExportInstaButton
               establishment={currentEstablishment}
               claims={claims}
+            />
+            <ExportStoryButton
+              establishment={currentEstablishment}
             />
             <ExportEmailButton
               establishment={currentEstablishment}
