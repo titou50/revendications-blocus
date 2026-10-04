@@ -8,7 +8,6 @@ import { ExportInstaButton } from "@/components/export-insta-button";
 import { ExportStoryButton } from "@/components/export-story-button";
 import { ExportEmailButton } from "@/components/export-email-button";
 import { ShareSiteButton } from "@/components/share-site-button";
-import { Badge } from "@/components/ui/badge";
 import { partitionClaims } from "@/lib/score";
 import type { Claim, Establishment, VoteType } from "@/lib/types";
 
@@ -25,7 +24,6 @@ export function LiveDocument({
   initialClaims: Claim[];
 }) {
   const [claims, setClaims] = useState(initialClaims);
-  const [participants, setParticipants] = useState(establishment.participant_count);
 
   // Synchronisation Realtime sécurisée sans doublons
   useEffect(() => {
@@ -64,10 +62,6 @@ export function LiveDocument({
       supabase.removeChannel(channel);
     };
   }, [establishment.id]);
-
-  useEffect(() => {
-    setParticipants(establishment.participant_count);
-  }, [establishment.participant_count]);
 
   // Gestion du vote fluide avec bascule up/down et rollback en cas d'erreur
   async function vote(claimId: string, voteType: VoteType) {
@@ -155,11 +149,6 @@ export function LiveDocument({
   );
   const dismissed = [...local.dismissed, ...national.dismissed];
 
-  const currentEstablishment = {
-    ...establishment,
-    participant_count: participants,
-  };
-
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-36 pt-8">
       <header className="mb-10 border-b border-dashed pb-6">
@@ -172,14 +161,14 @@ export function LiveDocument({
           </h1>
           <div className="flex flex-wrap items-center gap-2">
             <ExportInstaButton
-              establishment={currentEstablishment}
+              establishment={establishment}
               claims={claims}
             />
             <ExportStoryButton
-              establishment={currentEstablishment}
+              establishment={establishment}
             />
             <ExportEmailButton
-              establishment={currentEstablishment}
+              establishment={establishment}
               claims={claims}
             />
             <ShareSiteButton />
@@ -192,9 +181,6 @@ export function LiveDocument({
           <span>
             {establishment.city} · {establishment.type}
           </span>
-          <Badge variant="secondary">
-            {participants} participant{participants > 1 ? "s" : ""}
-          </Badge>
         </div>
       </header>
 
