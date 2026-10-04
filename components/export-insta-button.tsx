@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
 import type { Claim, Establishment } from '@/lib/types';
 import { InstaSlide } from './insta-carousel-template';
@@ -10,16 +10,87 @@ interface ExportInstaButtonProps {
   claims: Claim[];
 }
 
+const CLEAN_BATCH_SIZE = 40;
+
+// Corrige / filtre un lot de revendications via l'IA.
+// En cas d'échec, on garde les textes d'origine pour ne jamais bloquer la génération.
+async function cleanBatch(batch: Claim[]): Promise<{ claims: Claim[]; failed: boolean }> {
+  try {
+    const res = await fetch('/api/claims/clean-claims', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        claims: batch.map((c) => ({ id: c.id, text: c.formatted_title || c.original_text })),
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = (await res.json()) as { claims?: { id: string; text: string }[] };
+    if (!Array.isArray(data.claims)) throw new Error('Réponse invalide');
+
+    const cleanedById = new Map(data.claims.map((c) => [c.id, c.text]));
+    const kept = batch
+      .filter((c) => cleanedById.has(c.id))
+      .map((c) => ({ ...c, formatted_title: cleanedById.get(c.id)! }));
+
+    return { claims: kept, failed: false };
+  } catch (error) {
+    console.error('Correction IA des revendications indisponible :', error);
+    return { claims: batch, failed: true };
+  }
+}
+
 export function ExportInstaButton({ establishment, claims }: ExportInstaButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
 
   const CLAIMS_PER_SLIDE = 3;
-  const activeClaims = claims.filter((c) => c.status !== 'archived');
+  const activeClaims = useMemo(() => claims.filter((c) => c.status !== 'archived'), [claims]);
+
+  // Résultat de la correction IA, associé à la "signature" des textes pour savoir s'il est à jour
+  const [cleaned, setCleaned] = useState<{
+    signature: string;
+    claims: Claim[];
+    failed: boolean;
+  } | null>(null);
+  const inFlight = useRef<string | null>(null);
+
+  const signature = useMemo(
+    () => activeClaims.map((c) => `${c.id}:${c.formatted_title || c.original_text}`).join('|'),
+    [activeClaims]
+  );
+
+  // Correction automatique à l'ouverture (et si les textes changent)
+  useEffect(() => {
+    if (!isOpen || activeClaims.length === 0) return;
+    if (cleaned?.signature === signature || inFlight.current === signature) return;
+
+    const sig = signature;
+    inFlight.current = sig;
+
+    (async () => {
+      const batches: Claim[][] = [];
+      for (let i = 0; i < activeClaims.length; i += CLEAN_BATCH_SIZE) {
+        batches.push(activeClaims.slice(i, i + CLEAN_BATCH_SIZE));
+      }
+      const results = await Promise.all(batches.map(cleanBatch));
+      setCleaned({
+        signature: sig,
+        claims: results.flatMap((r) => r.claims),
+        failed: results.some((r) => r.failed),
+      });
+      if (inFlight.current === sig) inFlight.current = null;
+    })();
+  }, [isOpen, signature, activeClaims, cleaned]);
+
+  const displayClaims: Claim[] | null =
+    cleaned && cleaned.signature === signature ? cleaned.claims : null;
+  const isCleaning = isOpen && activeClaims.length > 0 && displayClaims === null;
 
   const claimChunks: Claim[][] = [];
-  for (let i = 0; i < activeClaims.length; i += CLAIMS_PER_SLIDE) {
-    claimChunks.push(activeClaims.slice(i, i + CLAIMS_PER_SLIDE));
+  const slidesClaims = displayClaims ?? [];
+  for (let i = 0; i < slidesClaims.length; i += CLAIMS_PER_SLIDE) {
+    claimChunks.push(slidesClaims.slice(i, i + CLAIMS_PER_SLIDE));
   }
 
   // Cover (1) + Chunks de revendications + Slide CTA finale (1)
@@ -77,6 +148,11 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
               <div>
                 <h3 className="text-lg font-bold text-white">Visuels Instagram</h3>
                 <p className="text-xs text-zinc-400">Télécharge chaque slide en PNG direct</p>
+                {cleaned?.signature === signature && cleaned.failed && (
+                  <p className="text-xs text-amber-400 mt-1">
+                    Correction IA indisponible : textes d&apos;origine utilisés.
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -86,7 +162,19 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
               </button>
             </div>
 
+            {/* Correction IA en cours */}
+            {isCleaning && (
+              <div className="p-10 flex flex-col items-center justify-center gap-3 text-center">
+                <div className="w-8 h-8 border-2 border-zinc-700 border-t-pink-500 rounded-full animate-spin" />
+                <p className="text-sm font-semibold text-white">Correction des revendications...</p>
+                <p className="text-xs text-zinc-400">
+                  Orthographe, niveau de langage et suppression des idées hors sujet
+                </p>
+              </div>
+            )}
+
             {/* Grille des visuels */}
+            {!isCleaning && (
             <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
               {Array.from({ length: totalSlides }).map((_, idx) => (
                 <div key={idx} className="flex flex-col items-center gap-3 bg-zinc-950/50 p-4 rounded-xl border border-zinc-800/80">
@@ -124,6 +212,7 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
                 </div>
               ))}
             </div>
+            )}
           </div>
         </div>
       )}
