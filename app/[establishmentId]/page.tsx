@@ -1,6 +1,5 @@
 import { LiveDocument } from "@/components/live-document";
-import { getEstablishment, listClaims, recordVisit } from "@/lib/db";
-import { getSessionId, hashSession } from "@/lib/session";
+import { getEstablishment, listClaims } from "@/lib/db";
 import { notFound } from "next/navigation";
 
 export default async function EstablishmentPage({
@@ -12,14 +11,7 @@ export default async function EstablishmentPage({
   const establishment = await getEstablishment(establishmentId);
   if (!establishment) notFound();
 
-  const session = hashSession(await getSessionId());
-  const participant_count = await recordVisit(establishment.id, session);
   const claims = await listClaims(establishment.id);
 
-  return (
-    <LiveDocument
-      establishment={{ ...establishment, participant_count }}
-      initialClaims={claims}
-    />
-  );
+  return <LiveDocument establishment={establishment} initialClaims={claims} />;
 }
