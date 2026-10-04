@@ -57,9 +57,6 @@ export function InstaSlide({
               REVENDICATIONS &<br />
               CAHIER DE DOLÉANCES
             </h1>
-            <p className="text-2xl text-neutral-300 font-semibold">
-              {establishment.participant_count || 0} participant(s) mobilisé(s)
-            </p>
           </div>
         ) : isCTA ? (
           /* SLIDE FINALE : CALL TO ACTION / PUB SITE */
