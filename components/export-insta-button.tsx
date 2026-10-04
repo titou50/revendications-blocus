@@ -10,7 +10,7 @@ interface ExportInstaButtonProps {
   claims: Claim[];
 }
 
-const CLEAN_BATCH_SIZE = 40;
+const CLEAN_BATCH_SIZE = 50; // = limite par requête côté serveur
 
 // Corrige / filtre un lot de revendications via l'IA.
 // En cas d'échec, on garde les textes d'origine pour ne jamais bloquer la génération.
@@ -20,18 +20,31 @@ async function cleanBatch(batch: Claim[]): Promise<{ claims: Claim[]; failed: bo
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        claims: batch.map((c) => ({ id: c.id, text: c.formatted_title || c.original_text })),
+        claims: batch.map((c) => ({
+          id: c.id,
+          category: c.category,
+          text: c.formatted_title || c.original_text,
+        })),
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const data = (await res.json()) as { claims?: { id: string; text: string }[] };
+    const data = (await res.json()) as {
+      claims?: { id: string; text: string; category?: Claim['category'] }[];
+    };
     if (!Array.isArray(data.claims)) throw new Error('Réponse invalide');
 
-    const cleanedById = new Map(data.claims.map((c) => [c.id, c.text]));
+    const cleanedById = new Map(data.claims.map((c) => [c.id, c]));
     const kept = batch
       .filter((c) => cleanedById.has(c.id))
-      .map((c) => ({ ...c, formatted_title: cleanedById.get(c.id)! }));
+      .map((c) => {
+        const cleanedClaim = cleanedById.get(c.id)!;
+        return {
+          ...c,
+          formatted_title: cleanedClaim.text,
+          category: cleanedClaim.category ?? c.category,
+        };
+      });
 
     return { claims: kept, failed: false };
   } catch (error) {
@@ -168,7 +181,7 @@ export function ExportInstaButton({ establishment, claims }: ExportInstaButtonPr
                 <div className="w-8 h-8 border-2 border-zinc-700 border-t-pink-500 rounded-full animate-spin" />
                 <p className="text-sm font-semibold text-white">Correction des revendications...</p>
                 <p className="text-xs text-zinc-400">
-                  Orthographe, niveau de langage et suppression des idées hors sujet
+                  Orthographe, niveau de langage, doublons et idées hors sujet
                 </p>
               </div>
             )}
